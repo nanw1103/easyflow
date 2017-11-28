@@ -1,0 +1,23 @@
+{
+  "name": "easyflow",
+  "version": "1.0.0",
+  "description": "Easy workflow engine with status and messaging utilities.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanw1103/easyflow.git"
+  },
+  "keywords": [
+    "workflow",
+    "javascript"
+  ],
+  "author": "nanw1103",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nanw1103/easyflow/issues"
+  },
+  "homepage": "https://github.com/nanw1103/easyflow#readme"
+}
