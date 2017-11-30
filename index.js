@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 const util = require('util')
 
@@ -12,26 +12,80 @@ function isClass(v) {
 	return typeof v === 'function' && /^\s*class\s+/.test(v.toString());
 }
 
-function genId() {
-	let n = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
-	return 'T' + n	//must not be numeric id, even string. Otherwise the order will not be kept in an object.
+if (!String.prototype.padEnd) {
+	String.prototype.padEnd = function(len, char) {
+		char = char || ' '
+		let s = this
+		while (s.length < len)
+			s += char
+		return s
+	}
 }
 
-class WfTask {
-	constructor(workflow, isParallel, args) {
-				
+class TaskUnit {
+	constructor(workflow) {
+		
 		Object.defineProperty(this, 'workflow', {value: workflow})
 		
-		if (isParallel)
-			this.isParallel = isParallel
-		
-		let status = {children: {}}
+		let status = {}
 		Object.defineProperty(this, '_status', { configurable: true, value: status})
+		
+		Object.defineProperty(this, 'parent', { writable: true })
+		//this.parallel = undefined
+		
+		//this.func = undefined
+		//this.tasks = undefined
+	}
+	
+	static wrapFunc(workflow, func) {
+		let t = new TaskUnit(workflow)
+		t.id(func.name)
+		t.func = (passOn) => func.call(t, passOn, (msg) => t.message(msg))
+		return t
+	}
+	
+	static wrapBoundFunc(workflow, className, instance, func) {
+		let t = new TaskUnit(workflow)
+		t.id(className + '.' + func.name)
+		t.func = (passOn) => func.call(instance, passOn, (msg) => t.message(msg))
+		return t
+	}
+	
+	static wrapClass(workflow, clazz) {
+		let unit = new TaskUnit(workflow)
+		let instance = new clazz()
+			
+		let items
+		if (Array.isArray(instance.sequence)) {
+			items = instance.sequence
+		} else if (Array.isArray(instance.parallel)) {
+			items = instance.parallel
+			unit.isParallel = true
+		} else {
+			throw 'Task item is a class, but missing "sequence" (or "parallel") property to define sub tasks'
+		}
+		
+		for (let j = 0; j < items.length; j++) {
+			if (!items[j])
+				throw 'Task item is undefined: ' + clazz.name + '.' + (parallel ? 'parallel' : 'sequence') + '[' + j + ']'
+			items[j] = TaskUnit.wrapBoundFunc(workflow, clazz.name, instance, items[j])
+			items[j].parent = unit
+		}
+		
+		if (instance.name)
+			unit._status.name = instance.name
+		unit.id(clazz.name)		
+		unit.tasks = items
+		return unit
+	}
+	
+	static wrapArgs(workflow, args) {		
+		let unit = new TaskUnit(workflow)
 		
 		let start
 		if (typeof args[0] === 'string') {
 			start = 1
-			status.name = args[0]
+			unit._status.name = args[0]
 		} else {
 			start = 0
 		}
@@ -40,8 +94,14 @@ class WfTask {
 		for (let i = 0; i < tasks.length; i++) {
 			let t = tasks[i]
 
-			//if already WfTask, we are fine with it
-			if (t instanceof WfTask) {
+			if (t instanceof Easyflow) {
+				t.status()
+				t = t.roots[0]
+				tasks[i] = t
+			}
+			
+			//if already TaskUnit, we are fine with it
+			if (t instanceof TaskUnit) {
 				if (t.workflow !== workflow) {
 					//this is a nested workflow
 					t.workflow.parent = workflow
@@ -51,66 +111,64 @@ class WfTask {
 				if (chain.tasks.length === 1)
 					chain = chain.tasks[0]
 				tasks[i] = chain
-				chain.parent = this
+				chain.parent = unit
 				continue
 			}
 			
 			if (typeof t !== 'function')
 				throw 'Invalid task item type. Must be function or class. t=' + util.inspect(t)
 			
-			if (!isClass(t))
-				continue	//a bare function. We are fine with it
-			
-			function getMsgHandler(n) {
-				return (msg) => {
-					if (tasks[n]._status)
-						tasks[n]._status.message = msg
-				}
-			}
-			let instance = new t(getMsgHandler(i))
-			
-			let parallel
-			let items
-			if (Array.isArray(instance.sequence)) {
-				items = instance.sequence
-			} else if (Array.isArray(instance.parallel)) {
-				items = instance.parallel
-				parallel = true
-			} else {
-				throw 'Task item is a class, but missing "sequence" (or "parallel") property to define sub tasks'
+			if (!isClass(t)) {	//a bare function. Wrap as a single TaskUnit				
+				t = TaskUnit.wrapFunc(workflow, t)
+				t.parent = unit
+				tasks[i] = t
 				continue
 			}
 			
-			for (let j = 0; j < items.length; j++)
-				items[j] = items[j].bind(instance)
-			
-			if (instance.name)
-				items.unshift(instance.name)
-			tasks[i] = new WfTask(this.workflow, parallel, items).id(t.name)
-			tasks[i].parent = this
+			//a task class. Always create instance to clear state
+			t = TaskUnit.wrapClass(workflow, t)
+			t.parent = unit
+			tasks[i] = t
 		}
-		this.tasks = tasks
+		unit.tasks = tasks
+		return unit
+	}
+	
+	message(msg) {
+		let status = this._findNamedStatus()
+		let name
+		if (status) {
+			status.message = msg
+			name = status.name
+		}
+		this.workflow._fireMessageChange(this._id, name, msg)
 	}
 	
 	_formalize() {
-		if (!this._id)
-			Object.defineProperty(this, '_id', {value: genId()})
-		for (let i = 0; i < this.tasks.length; i++) {
-			let t = this.tasks[i]
-			if (t instanceof WfTask) {
-				if (t._formalize())
-					this._status.children[t._id] = t._status
+		
+		let children = []
+		if (this.tasks) {
+			for (let i = 0; i < this.tasks.length; i++) {
+				let t = this.tasks[i]
+				if (t instanceof TaskUnit) {
+					if (t._formalize())
+						children.push(t._status)
+				}
 			}
 		}
 		if (this.workflow.isDisabled(this._id))
 			this._status.status = 'skipped'
 		
-		if (!this._status) 
-			console.log('???')
-		if (Object.keys(this._status.children).length === 0)
-			delete this._status.children
-		if (Object.keys(this._status).length === 0)
-			delete this._status
+		if (children.length > 0)
+			this._status.children = children
+
+		if (this._status) {
+			if (Object.keys(this._status).length === 0)
+				delete this._status
+			else if (this._id)
+				this._status.id = this._id
+		}
+
 		return this._status
 	}
 	
@@ -123,20 +181,24 @@ class WfTask {
 	}
 		
 	sequence() {
-		let task = new WfTask(this.workflow, false, arguments)
+		let task = TaskUnit.wrapArgs(this.workflow, arguments)
 		this.parent._addChild(task)
 		return task
 	}
 	
 	parallel() {
-		let task = new WfTask(this.workflow, true, arguments)		
+		let task = TaskUnit.wrapArgs(this.workflow, arguments)
+		task.isParallel = true
 		this.parent._addChild(task)
 		return task
 	}
 	
 	_addChild(child) {
 		child.parent = this
-		this.tasks.push(child)
+		if (!this.tasks)
+			this.tasks = [child]
+		else
+			this.tasks.push(child)
 	}
 	
 	disable() {
@@ -149,25 +211,16 @@ class WfTask {
 		return this
 	}
 	
-	_findStatus() {
+	_findNamedStatus() {
 		for (let t = this; t; t = t.parent)
 			if (t._status && t._status.name)
 				return t._status
 	}
-	
+		
 	_runImpl(passOn) {
-		let status = this._findStatus()
-		let name = this._status ? this._status.name : undefined
-		let thisContext = {
-			message: (msg) => status ? (status.message = msg) : undefined,
-			workflow: this.workflow
-		}
-		
+		let status = this._findNamedStatus()
 		let workflow = this.workflow
-		function isDisabled(id) {
-			return workflow.isDisabled(id)
-		}
-		
+
 		let verbose = this.workflow._verbose
 		function log() {
 			if (verbose) {
@@ -177,44 +230,64 @@ class WfTask {
 			}
 		}
 		
-		let id = this._id
-		if (isDisabled(id)) {
-			if (name) {
-				status.status = 'skipped'
-				log('skipped:', name)
-			} else {
-				log('skipped: (id)', id)
+		let me = this
+		
+		function changeStatus(stat, data) {
+			let isMajor = me._status && me._status.name
+			let displayName = status ? status.name : ''
+			if (me._id) {
+				let connectors = {
+					running: ' >> ',
+					skipped: ' -- ',
+					complete: ' << ',
+					error: ' << '
+				}
+				displayName += connectors[stat] + me._id
 			}
-			workflow._fireStatusChange(this, 'skipped')
-			return Promise.resolve()
+				
+			if (isMajor) {
+				status.status = stat
+				if (stat === 'running')
+					displayName = (displayName + ' ').padEnd(55, '-')
+				log((stat + ':').toUpperCase().padEnd(10), displayName)
+			} else {
+				me._id && log((stat + ':').padEnd(10), displayName)
+			}
+			workflow._fireStatusChange(me, stat, data)
 		}
 		
-		let tasks = this.tasks
+		if (workflow.isDisabled(this._id)) {
+			changeStatus('skipped')
+			return Promise.resolve(passOn)
+		}
+				
+		changeStatus('running')
+		
+		if (this.func) {
+			let ret = this.func(passOn)
+			if (isPromise(ret)) {
+				return ret.then((data) => {
+					changeStatus('complete', data)
+					return Promise.resolve(data)
+				}).catch((err) => {
+					changeStatus('error', err)
+					return Promise.reject(err)
+				})
+			}
+			changeStatus('complete', ret)
+			return ret
+		}
+		
+		let tasks = this.tasks		
 		
 		return new Promise((resolve, reject) => {
-						
-			if (name) {
-				status.status = 'running'
-				log('start:', name)
-			}
-			workflow._fireStatusChange(this, 'running')
-			let me = this
-			
-			function completeMe(err, data) {				
-				if (err) {
-					if (name) {
-						status.status = 'error'
-						log('error:', name)
-					}
-					workflow._fireStatusChange(me, 'error')
-					reject(err)
-				} else {
-					if (name) {
-						status.status = 'complete'
-						log('complete:', name)
-					}
-					workflow._fireStatusChange(me, 'complete')
+			function completeMe(success, data) {
+				if (success) {
+					changeStatus('complete', data)
 					resolve(data)
+				} else {
+					changeStatus('error', data)
+					reject(data)
 				}
 			}
 			
@@ -227,38 +300,29 @@ class WfTask {
 					function callOneParallel(obj) {
 						if (isPromise(obj)) {
 							obj.then((ret) => {
-								
 								parallelResult.push(ret)
 								
-								if (++finished == tasks.length) {
-									completeMe(null, parallelResult)
-								}
+								if (++finished == tasks.length)
+									completeMe(true, parallelResult)
+								
 							}).catch((err) => {
-								completeMe(err)
+								completeMe(false, err)
 							})
 						} else {
-							
 							parallelResult.push(obj)
 							
 							if (++finished == tasks.length)
-								completeMe(null, parallelResult)
+								completeMe(true, parallelResult)
 						}
 					}
 					
-					for (let i = 0; i < this.tasks.length; i++) {
+					for (let i = 0; i < tasks.length; i++) {
 						let t = tasks[i]
 												
-						if (typeof t === 'function') {							
-							if (isDisabled(t)) {
-								log('skipped:', t.name)
-								continue
-							}
-							callOneParallel(t.call(thisContext, passOn))
-						} else if (t instanceof WfTask) {
-							callOneParallel(t._runImpl(passOn))
-						} else {
-							throw 'Invalid object type:' + typeof t
-						}
+						if (!(t instanceof TaskUnit))
+							throw 'Invalid task object type:' + typeof t
+						
+						callOneParallel(t._runImpl(passOn))
 					}
 					
 				} else {
@@ -272,7 +336,7 @@ class WfTask {
 								passOn = ret
 								setTimeout(runOne, 0)
 							}).catch((err) => {
-								completeMe(err)
+								completeMe(false, err)
 							})
 						} else {
 							setTimeout(runOne, 0)
@@ -281,31 +345,22 @@ class WfTask {
 					
 					function runOne() {
 						if (nextIdx >= tasks.length) {
-							completeMe(null, passOn)
+							completeMe(true, passOn)
 							return
 						}
 						
 						let t = tasks[nextIdx++]
 						
-						if (typeof t === 'function') {
-							if (isDisabled(t)) {
-								log('skipped:', t.name)
-								setTimeout(runOne, 0)
-								return
-							}
-						
-							continueCall(t.call(thisContext, passOn))
-						} else if (t instanceof WfTask) {
-							continueCall(t._runImpl(passOn))
-						} else {
+						if (!(t instanceof TaskUnit))
 							throw 'Invalid task object type: ' + typeof t
-						}
+						
+						continueCall(t._runImpl(passOn))
 					}
 					
 					runOne()
 				}
 			} catch (e) {
-				completeMe(e)
+				completeMe(false, e)
 			}
 		})
 	}
@@ -314,12 +369,17 @@ class WfTask {
 		return this.workflow.run(passOn)
 	}
 	
-	status() {
-		return this.workflow.status()
+	status(unitOnly) {
+		return unitOnly ? this._status : this.workflow.status()
 	}
 	
 	onStatus(cb) {
 		this.workflow.onStatus(cb)
+		return this
+	}
+	
+	onMessage(cb) {
+		this.workflow.onMessage(cb)
 		return this
 	}
 	
@@ -336,29 +396,32 @@ class Easyflow {
 		this.dependency = {}
 		this.roots = []
 		this.name = name
-		this._verbose = true
+		Object.defineProperty(this, '_verbose', {value: true, writable: true})
 	}
 	
 	sequence() {
-		let t = new WfTask(this, false, arguments)
+		let t = TaskUnit.wrapArgs(this, arguments)
 		this._addChain()._addChild(t)
 		return t
 	}
 	
 	parallel() {
-		let t = new WfTask(this, true, arguments)
+		let t = TaskUnit.wrapArgs(this, arguments)
+		t.isParallel = true
 		this._addChain()._addChild(t)
 		return t
 	}
 	
 	id(id) {
-		if (id)
+		if (id) {
 			this._id = id
+			return this
+		}
 		return this._id
 	}
 	
 	_addChain() {
-		let chain = new WfTask(this, false, [])
+		let chain = new TaskUnit(this, [])
 		this.roots.push(chain)
 		return chain
 	}
@@ -421,19 +484,33 @@ class Easyflow {
 		this._onStatus = cb
 		return this
 	}
-	
+
+	onMessage(cb) {
+		this._onMessage = cb
+		return this
+	}
+
 	_fireStatusChange(task, status) {
+				
 		let name = task._status ? task._status.name : undefined
 		
-		if (!name)
+		if (!task._id && !name)
 			return
 		
 		if (this._onStatus)
 			this._onStatus(task._id, name, status)
 		if (this.parent)
-			this.parent._fireStatusChange(task._id, name, status)
+			this.parent._fireStatusChange(task, status)
 	}
-	
+
+	_fireMessageChange(id, name, message) {
+		
+		if (this._onMessage)
+			this._onMessage(id, name, message)
+		if (this.parent)
+			this.parent._fireMessageChange(id, name, message)
+	}
+
 	verbose(enabled) {
 		this._verbose = enabled
 		return this
@@ -455,8 +532,10 @@ class Easyflow {
 	}
 	
 	_formalize() {
-		if (this.roots.length !== 1)
+		if (this.roots.length !== 1) {
+			console.log(util.inspect(this.roots))
 			throw 'workflow root is not unique. roots.length=' + this.roots.length
+		}
 		
 		let t = this.roots[0]
 		if (t.tasks.length === 1) {

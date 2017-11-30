@@ -1,14 +1,11 @@
-
+'use strict';
 
 //Task can be wrapped as an object for clarity, as well as sharing context via member variable
 class MyBigTask {
 	
-	constructor(message) {
+	constructor() {
 		//Define the task sequence in this class. Could be either this.sequence, or this.parallel
 		this.sequence = [this.task1, this.task2, this.task3]
-		
-		//optional. message is a function, which sets message of the current status scope
-		this.message = message
 		
 		//optionally, task name can be specified
 		this.name = 'A Big Task'
@@ -20,12 +17,14 @@ class MyBigTask {
 	task1() {
 		this.n = 0
 		
-		this.message('This is an optional status message from MyBigTask')
-		
 		console.log('MyBigTask.subtask1, this.n=', this.n++)
 	}
 	
-	task2() {
+	task2(param, msg) {
+		
+		//Demo reporting message in the current named step
+		msg('This is an optional status message from MyBigTask')
+				
 		console.log('MyBigTask.subtask2, this.n=', this.n++)
 	}
 	

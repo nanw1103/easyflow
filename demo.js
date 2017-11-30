@@ -1,3 +1,4 @@
+'use strict';
 /*
 Easyflow provides a centralized view for workflow definition. It provides clear and robust workflow by 
 moving flow dependency out from business logic unit.
@@ -17,15 +18,18 @@ Promise.resolve()
 .then(demo4)
 .then(demo5)
 .then(demo6)
+.then(demo7)
 .then(() => {
 	console.log('Demo complete')
 }).catch((e) => {
 	console.log('Demo error:', e)
 })
+
+const DEMO_DELAY = 1	//1000
 //----------------------------------------------------------------------------
 function demo1() {
 	console.log()
-	console.log('-------------------- demo1: basic --------------------')
+	console.log('============================== Demo 1: Basic ==============================')
 	console.log()
 	
 	/*
@@ -38,10 +42,10 @@ function demo1() {
 	
 	/*
                             /- tsak4 -\
-    task1 -> task2 -> task3 -> task5 -> task7 -> task8
+    task1 -> task2 -> task3 -> task5 -> task7
                             \- task6 -/
 	*/
-		
+	
 	return new Easyflow().sequence(
 		task1,
 		task2,
@@ -51,8 +55,7 @@ function demo1() {
 		task5,
 		task6
 	).sequence(
-		task7,
-		task8
+		task7
 	).run('my initial param for the first task')
 	.then((result) => {
 		console.log('Success. Result:', result)
@@ -61,7 +64,7 @@ function demo1() {
 //----------------------------------------------------------------------------
 function demo2() {
 	console.log()
-	console.log('-------------------- demo2: nested task --------------------')
+	console.log('==================== Demo 2: Nested Sequence ====================')
 	console.log()
 	
 	/*
@@ -94,7 +97,7 @@ function demo2() {
 //----------------------------------------------------------------------------
 function demo3() {
 	console.log()
-	console.log('-------------------- demo3: Status --------------------')
+	console.log('==================== Demo 3: Status ====================')
 	console.log()
 	
 	/*
@@ -110,8 +113,8 @@ function demo3() {
 	The 'status' property will be automatically updated by framework upon start/complete/error, or 'skipped' if being disabled.
 	Concrete task function can update the 'message' property of its owning status object in the following way:
 	
-	function task1() {
-		this.message = 'Hello, mortal.'
+	function task1(param, msg) {
+		msg('Hello, mortal.')
 	}
 	
 	Message from nested anonymous subtask will be updated to the status object of the first named ascenstor unit, if any.
@@ -137,16 +140,16 @@ function demo3() {
 			flow.sequence(task18, task19)
 		),
 		task20
-	)
+	).verbose(false)	//disable default logging, to avoid too much log in the demo
 	
 	//flow.status() will be updated automatically along the execution of tasks, 
 	//and can be retrieved any time. E.g. continuously polled by UI
 	let status = flow.status()
-	console.log('Status', util.inspect(status, null, 4))
+	console.log('Status', util.inspect(status, null, 10))
 	
 	//optionally, status event can be hooked. For named units only.
 	flow.onStatus((id, name, status) => {
-		console.log('onStatus: name=' + name + ', id=' + id + ', status=' + status)
+		console.log('onStatus: id=' + id + ', name=' + name + ', status=' + status)
 	})
 	
 	return flow.run().then((result) => {
@@ -156,7 +159,7 @@ function demo3() {
 //----------------------------------------------------------------------------
 function demo4() {
 	console.log()
-	console.log('-------------------- demo4: nested easyflow, and task class --------------------')
+	console.log('==================== Demo 4: Nested Easyflow and Task Class ====================')
 	console.log()
 	
 	/*
@@ -167,8 +170,8 @@ function demo4() {
 	
 	let flow = new Easyflow().sequence('Demo nested easyflow & task class',
 		task1,
-		MyBigTask,	//a task class
-		subflow,	//another flow. If you want to enable/disable it, use "subflow.id('...')," here to specify an id for the subflow.
+		MyBigTask,		//a task class
+		subflow,		//another flow, imported from other module
 		task3
 	)
 	return flow.run().then(() => {
@@ -178,12 +181,12 @@ function demo4() {
 //----------------------------------------------------------------------------
 function demo5() {
 	console.log()
-	console.log('-------------------- demo5: nested status --------------------')
+	console.log('==================== Demo5: Nested Status ====================')
 	console.log()
 	
 	let flow = new Easyflow()
 	
-	//message issued by anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessage¡®
+	//message from anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessage¡®
 	
 	flow.sequence('DemoMessage',
 		task101,
@@ -199,15 +202,15 @@ function demo5() {
 		console.log(status)
 		if (++n == 6)
 			clearInterval(timer)
-	}, 1000)
+	}, DEMO_DELAY)
 	
-	return flow.run()
+	return flow.run().then(() => console.log(status))
 }
 
 //----------------------------------------------------------------------------
 function demo6() {
 	console.log()
-	console.log('---------- demo6: disable tasks ----------')
+	console.log('==================== Demo 6: Disable Tasks ====================')
 	console.log()
 		
 	let subflow = MySubFlow().id('myNestedFlow')
@@ -233,21 +236,36 @@ function demo6() {
 		task6,			//will not run. Programmatically disabled in demo6func1
 		task7			//Configured as disabled, but programmatically enabled in demo6func1
 	).disable(task2, task5, task7, 'myStep2', MyBigTask, 'myNestedFlow')	//disable some tasks
+	.disable('MyBigTask.task1')	//additionally, specific step of a task class can be disabled as well.
 	.run()
 }
-
 //----------------------------------------------------------------------------
-function task1(param) {
+function demo7() {
+	console.log()
+	console.log('==================== Demo 7: Actively Log Message ====================')
+	console.log()
+	
+	let flow = new Easyflow()
+	
+	return flow.sequence('Demo Log Message',
+		task1,
+		MyBigTask
+	)
+	.onMessage((id, name, message) => console.log('>>> Log Message [id:' + id + ', name:' + name + ']', message))
+	.run()
+	.then(()=>console.log(flow.status()))
+}
+//----------------------------------------------------------------------------
+function task1(param, msg) {
 	let name = arguments.callee.name	
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			if (param)
 				console.log('param in task1:', param)
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve(11)
-		}, 1000)
+		}, DEMO_DELAY)
 	})
 }
 
@@ -256,12 +274,12 @@ function task2(data) {
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
 			if (data)
-				console.log(name, '- data inherited from previous task resolve():', data)
+				console.log('Hello from', name, '- data inherited from previous task resolve():', data)
 			else
-				console.log(name)
+				console.log('Hello from', name)
 			
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -269,24 +287,21 @@ function task3(data) {
 	let name = arguments.callee.name
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)
 	})
 }
 
-function task4() {
+function task4(param, msg) {
 	let name = arguments.callee.name
-	
-	//you can set message in status object, of the named task unit
-	let message = this.message
 	
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
-			console.log(name)
+			msg('Hello from ' + name)	//set message in status object, of the named task unit
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -294,9 +309,9 @@ function task5() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -304,9 +319,9 @@ function task6() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -314,9 +329,9 @@ function task7() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
-			resolve()
-		}, 1000)		
+			console.log('Hello from', name)
+			resolve('This is result from task 7')
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -324,9 +339,9 @@ function task8() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve('Hello from ' + name)
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -334,9 +349,9 @@ function task9() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -344,9 +359,9 @@ function task10() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -354,9 +369,9 @@ function task11() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve('Hello from ' + name)
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -364,9 +379,9 @@ function task12() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -374,21 +389,20 @@ function task13() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task14() {
+function task14(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
-			console.log(name)
+			msg('Hello from ' + name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -396,9 +410,9 @@ function task15() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -406,9 +420,9 @@ function task16() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -416,9 +430,9 @@ function task17() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -426,9 +440,9 @@ function task18() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -436,9 +450,9 @@ function task19() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
@@ -446,63 +460,58 @@ function task20() {
 	let name = arguments.callee.name		
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			console.log(name)
+			console.log('Hello from', name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task101() {
+function task101(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task102() {
+function task102(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task103() {
+function task103(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task104() {
+function task104(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }
 
-function task105() {
+function task105(param, msg) {
 	let name = arguments.callee.name
-	let message = this.message
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			message('Hello from ' + name)
+			msg('Hello from ' + name)
 			resolve()
-		}, 1000)		
+		}, DEMO_DELAY)		
 	})
 }

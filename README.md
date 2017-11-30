@@ -185,7 +185,7 @@ function demo5() {
 	
 	let flow = new Easyflow()
 	
-	//message issued by anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessage‘
+	//message issued by anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessage'
 	
 	flow.sequence('DemoMessage',
 		task101,
