@@ -1,11 +1,9 @@
-# easyflow
-Easy workflow engine with status and messaging utilities, for javascript.
-
+/*
 Easyflow provides a centralized view for workflow definition. It provides clear and robust workflow by 
 moving flow dependency out from business logic unit.
+*/
 
-```javascript
-const Easyflow = require('./easyflow.js')
+const Easyflow = require('./index.js')
 
 const util = require('util')
 const MySubFlow = require('./MySubFlow.js')
@@ -185,7 +183,7 @@ function demo5() {
 	
 	let flow = new Easyflow()
 	
-	//message issued by anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessageâ€˜
+	//message issued by anonymous subtask (task103, task104) will go to status object of the owner named task 'DemoMessage¡®
 	
 	flow.sequence('DemoMessage',
 		task101,
@@ -237,4 +235,274 @@ function demo6() {
 	).disable(task2, task5, task7, 'myStep2', MyBigTask, 'myNestedFlow')	//disable some tasks
 	.run()
 }
-```
+
+//----------------------------------------------------------------------------
+function task1(param) {
+	let name = arguments.callee.name	
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			if (param)
+				console.log('param in task1:', param)
+			message('Hello from ' + name)
+			resolve(11)
+		}, 1000)
+	})
+}
+
+function task2(data) {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			if (data)
+				console.log(name, '- data inherited from previous task resolve():', data)
+			else
+				console.log(name)
+			
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task3(data) {
+	let name = arguments.callee.name
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task4() {
+	let name = arguments.callee.name
+	
+	//you can set message in status object, of the named task unit
+	let message = this.message
+	
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task5() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task6() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task7() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task8() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve('Hello from ' + name)
+		}, 1000)		
+	})
+}
+
+function task9() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task10() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task11() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve('Hello from ' + name)
+		}, 1000)		
+	})
+}
+
+function task12() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task13() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task14() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task15() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task16() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task17() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task18() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task19() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task20() {
+	let name = arguments.callee.name		
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			console.log(name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task101() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task102() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task103() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task104() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			resolve()
+		}, 1000)		
+	})
+}
+
+function task105() {
+	let name = arguments.callee.name
+	let message = this.message
+	return new Promise((resolve, reject) => {
+		setTimeout(() => {
+			message('Hello from ' + name)
+			resolve()
+		}, 1000)		
+	})
+}
