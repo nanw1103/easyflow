@@ -1,4 +1,3 @@
-'use strict';
 /*
 Easyflow provides a centralized view for workflow definition. It provides clear and robust workflow by 
 moving flow dependency out from business logic unit.
