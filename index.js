@@ -40,14 +40,14 @@ class TaskUnit {
 	static wrapFunc(workflow, func) {
 		let t = new TaskUnit(workflow)
 		t.id(func.name)
-		t.func = (passOn) => func.call(t, passOn, (msg) => t.message(msg))
+		t.func = passOn => func.call(t, passOn, (...args) => t.message.apply(t, args))
 		return t
 	}
 	
 	static wrapBoundFunc(workflow, className, instance, func) {
 		let t = new TaskUnit(workflow)
 		t.id(className + '.' + func.name)
-		t.func = (passOn) => func.call(instance, passOn, (msg) => t.message(msg))
+		t.func = passOn => func.call(instance, passOn, (...args) => t.message.apply(t, args))
 		return t
 	}
 	
@@ -134,9 +134,10 @@ class TaskUnit {
 		return unit
 	}
 	
-	message(msg) {
+	message(...args) {
 		let status = this._findNamedStatus()
-		let name
+		let name		
+		let msg = util.format.apply(null, args)
 		if (status) {
 			status.message = msg
 			name = status.name
@@ -266,10 +267,10 @@ class TaskUnit {
 		if (this.func) {
 			let ret = this.func(passOn)
 			if (isPromise(ret)) {
-				return ret.then((data) => {
+				return ret.then(data => {
 					changeStatus('complete', data)
 					return Promise.resolve(data)
-				}).catch((err) => {
+				}).catch(err => {
 					changeStatus('error', err)
 					return Promise.reject(err)
 				})
@@ -299,13 +300,13 @@ class TaskUnit {
 					
 					function callOneParallel(obj) {
 						if (isPromise(obj)) {
-							obj.then((ret) => {
+							obj.then(ret => {
 								parallelResult.push(ret)
 								
 								if (++finished == tasks.length)
 									completeMe(true, parallelResult)
 								
-							}).catch((err) => {
+							}).catch(err => {
 								completeMe(false, err)
 							})
 						} else {
@@ -332,10 +333,10 @@ class TaskUnit {
 						
 						if (isPromise(obj)) {
 							
-							obj.then((ret) => {
+							obj.then(ret => {
 								passOn = ret
 								setTimeout(runOne, 0)
-							}).catch((err) => {
+							}).catch(err => {
 								completeMe(false, err)
 							})
 						} else {
@@ -442,7 +443,7 @@ class Easyflow {
 	disable(/*id...*/) {
 		let ids = [].slice.call(arguments)
 		let disabledIds = this.disabledIds
-		ids.forEach((id) => {
+		ids.forEach(id => {
 			if (typeof id === 'function')
 				id = id.name
 			disabledIds.add(id)
@@ -456,7 +457,7 @@ class Easyflow {
 	enable(/*id...*/) {
 		let ids = [].slice.call(arguments)
 		let disabledIds = this.disabledIds
-		ids.forEach((id) => {
+		ids.forEach(id => {
 			if (typeof id === 'function')
 				id = id.name
 			disabledIds.delete(id)
