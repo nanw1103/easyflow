@@ -68,7 +68,12 @@ class TaskUnit {
 		for (let j = 0; j < items.length; j++) {
 			if (!items[j])
 				throw 'Task item is undefined: ' + clazz.name + '.' + (parallel ? 'parallel' : 'sequence') + '[' + j + ']'
+			if(isClass(items[j])) {
+				items[j] = TaskUnit.wrapClass(workflow, items[j])
+			} else {
 			items[j] = TaskUnit.wrapBoundFunc(workflow, clazz.name, instance, items[j])
+			}
+			
 			items[j].parent = unit
 		}
 		
