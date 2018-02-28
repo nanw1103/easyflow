@@ -1,4 +1,4 @@
-'use strict';
+'use strict'
 
 const util = require('util')
 
@@ -9,7 +9,7 @@ function isPromise(o) {
 }
 
 function isClass(v) {
-	return typeof v === 'function' && /^\s*class\s+/.test(v.toString());
+	return typeof v === 'function' && /^\s*class\s+/.test(v.toString())
 }
 
 if (!String.prototype.padEnd) {
@@ -66,15 +66,17 @@ class TaskUnit {
 		}
 		
 		for (let j = 0; j < items.length; j++) {
-			if (!items[j])
-				throw 'Task item is undefined: ' + clazz.name + '.' + (parallel ? 'parallel' : 'sequence') + '[' + j + ']'
-			if(isClass(items[j])) {
-				items[j] = TaskUnit.wrapClass(workflow, items[j])
+			let it = items[j]
+			if (!it)
+				throw 'Task item is undefined: ' + clazz.name + '.' + (unit.isParallel ? 'parallel' : 'sequence') + '[' + j + ']'
+			if (isClass(it)) {
+				it = TaskUnit.wrapClass(workflow, it)
 			} else {
-			items[j] = TaskUnit.wrapBoundFunc(workflow, clazz.name, instance, items[j])
+				it = TaskUnit.wrapBoundFunc(workflow, clazz.name, instance, it)
 			}
 			
-			items[j].parent = unit
+			it.parent = unit
+			items[j] = it
 		}
 		
 		if (instance.name)
