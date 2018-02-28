@@ -1,6 +1,6 @@
 {
   "name": "easyflow",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Easy workflow engine with status and messaging utilities.",
   "main": "index.js",
   "scripts": {
