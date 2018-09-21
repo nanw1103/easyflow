@@ -255,8 +255,13 @@ class TaskUnit {
 				
 			if (isMajor) {
 				status.status = stat
-				if (stat === 'running')
+				if (stat === 'running') {
 					displayName = (displayName + ' ').padEnd(55, '-')
+					me._startTime = Date.now()
+				} else if (stat === 'complete' || stat === 'error') {
+					let cost = Date.now() - me._startTime
+					displayName += ` (${cost})`
+				}					
 				log((stat + ':').toUpperCase().padEnd(10), displayName)
 			} else {
 				me._id && log((stat + ':').padEnd(10), displayName)
@@ -347,6 +352,7 @@ class TaskUnit {
 								completeMe(false, err)
 							})
 						} else {
+							passOn = obj
 							setTimeout(runOne, 0)
 						}
 					}
